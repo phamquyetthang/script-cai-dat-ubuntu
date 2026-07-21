@@ -44,13 +44,14 @@ fi
 # Danh sách phần mềm: tag "mô tả" trạng-thái-mặc-định
 CHOICES=$(whiptail --title "Chọn phần mềm cần cài" \
   --checklist "Dùng phím MŨI TÊN để di chuyển, SPACE để tick chọn, ENTER để xác nhận:" \
-  22 80 15 \
+  22 80 16 \
   "chrome"   "Google Chrome"                                   ON \
   "telegram" "Telegram Desktop (qua Flatpak/Flathub)"          ON \
   "ibus"     "ibus-bamboo (bộ gõ tiếng Việt)"                  ON \
   "edge"     "Microsoft Edge (qua Flatpak/Flathub)"            OFF \
   "coccoc"   "Cốc Cốc (trình duyệt Việt Nam)"                  OFF \
   "wechat"   "WeChat (qua Flatpak/Flathub)"                    OFF \
+  "lark"     "Lark (Lark Suite - bản .deb chính thức)"         OFF \
   "wps"      "WPS Office (qua Flatpak/Flathub)"                OFF \
   "msfonts"  "Font Microsoft (Times New Roman, Arial...)"      OFF \
   "archive"  "Bộ giải nén RAR/7z (unrar + p7zip)"              OFF \
@@ -127,6 +128,26 @@ install_wechat() {
   echo "=== Đang cài WeChat (qua Flatpak) ==="
   ensure_flatpak
   sudo flatpak install --system -y flathub com.tencent.WeChat
+}
+
+install_lark() {
+  if have_cmd lark || dpkg -l 2>/dev/null | grep -qiE '^ii +lark'; then
+    skip_msg "Lark"; return
+  fi
+  echo "=== Đang cài Lark ==="
+  sudo apt install -y curl
+  # Lark không có link .deb cố định -> lấy link mới nhất từ API chính thức.
+  # Link có chữ ký + hết hạn nhanh nên phải lấy động mỗi lần. platform=10 = Linux x64 .deb.
+  # JSON dùng & cho ký tự '&' -> đổi lại bằng sed.
+  local URL
+  URL="$(curl -sL 'https://www.larksuite.com/api/package_info?platform=10' \
+    | sed -n 's/.*"download_link":"\([^"]*\)".*/\1/p' | sed 's/\\u0026/\&/g')"
+  if [[ -z "$URL" ]]; then
+    echo "  ✗ Không lấy được link tải Lark từ API (có thể API đã đổi) -> bỏ qua."
+    return
+  fi
+  wget -L "$URL" -O /tmp/lark.deb
+  sudo apt install -y /tmp/lark.deb
 }
 
 install_wps() {
@@ -405,6 +426,7 @@ fi
 is_selected chrome    && install_chrome
 is_selected telegram  && install_telegram
 is_selected wechat    && install_wechat
+is_selected lark      && install_lark
 is_selected wps       && install_wps
 is_selected edge      && install_edge
 is_selected coccoc    && install_coccoc

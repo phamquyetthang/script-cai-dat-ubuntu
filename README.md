@@ -14,6 +14,7 @@ cài bừa cả loạt.
 | Microsoft Edge | Flatpak (Flathub) | ⬜ OFF |
 | Cốc Cốc (trình duyệt Việt Nam) | repo chính thức | ⬜ OFF |
 | WeChat | Flatpak (Flathub) | ⬜ OFF |
+| Lark (Lark Suite) | `.deb` chính thức (lấy link động qua API) | ⬜ OFF |
 | WPS Office | Flatpak (Flathub) | ⬜ OFF |
 | Font Microsoft (Times New Roman, Arial...) | apt (multiverse) | ⬜ OFF |
 | Bộ giải nén RAR/7z (unrar + p7zip) | apt (multiverse) | ⬜ OFF |
