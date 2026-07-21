@@ -222,19 +222,13 @@ install_vlc() {
 }
 
 install_rclone() {
-  echo "=== Đang cài Rclone UI (app desktop) ==="
-  # Cài rclone CLI trước (Rclone UI dùng rclone ở bên dưới; và để có lệnh nền)
+  if have_flatpak com.rcloneui.RcloneUI; then skip_msg "Rclone UI"; return; fi
+  echo "=== Đang cài Rclone UI (qua Flatpak) ==="
+  # rclone CLI (cho lệnh nền) — cài nếu chưa có
   have_cmd rclone && echo "  -> rclone CLI đã có." || sudo apt install -y rclone
-
-  # Rclone UI cài qua .deb. Nếu đã có gói thì bỏ qua tải lại.
-  if dpkg -l 2>/dev/null | grep -qiE 'rclone.?ui'; then
-    echo "  -> Rclone UI đã cài, bỏ qua tải lại."
-    return
-  fi
-  # get.rcloneui.com/linux-deb tự chuyển hướng tới bản mới nhất; wget bám theo.
-  echo "  -> Tải bản .deb mới nhất của Rclone UI..."
-  wget -L https://get.rcloneui.com/linux-deb -O /tmp/rcloneui.deb
-  sudo apt install -y /tmp/rcloneui.deb
+  # Rclone UI (app desktop) qua Flatpak cho an toàn
+  ensure_flatpak
+  sudo flatpak install --system -y flathub com.rcloneui.RcloneUI
 }
 
 install_fcitx5() {
@@ -441,7 +435,8 @@ if is_selected edge; then
   echo "[Edge] Chạy tay bằng lệnh: flatpak run com.microsoft.Edge"
 fi
 if is_selected rclone; then
-  echo "[Rclone UI] Mở app 'Rclone UI' trong menu ứng dụng. Lần đầu vào thêm remote (Google Drive/cloud) rồi kéo-thả file."
+  echo "[Rclone UI] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
+  echo "[Rclone UI] Chạy tay: flatpak run com.rcloneui.RcloneUI . Lần đầu vào thêm remote (Google Drive/cloud) rồi kéo-thả file."
 fi
 if is_selected fcitx5; then
   echo "[fcitx5] Nhớ ĐĂNG XUẤT/KHỞI ĐỘNG LẠI máy để bộ gõ có hiệu lực (biến môi trường + session mới)."

@@ -19,7 +19,7 @@ cài bừa cả loạt.
 | Bộ giải nén RAR/7z (unrar + p7zip) | apt (multiverse) | ⬜ OFF |
 | AnyDesk (điều khiển từ xa) | repo chính thức | ⬜ OFF |
 | VLC | apt | ⬜ OFF |
-| Rclone UI (đồng bộ Google Drive/cloud) | `.deb` chính thức | ⬜ OFF |
+| Rclone UI (đồng bộ Google Drive/cloud) | Flatpak (Flathub) | ⬜ OFF |
 | fcitx5 + Unikey (bộ gõ tiếng Việt) | apt | ⬜ OFF |
 | Flameshot (chụp màn hình + phím Ctrl+Shift+S) | apt | ⬜ OFF |
 
