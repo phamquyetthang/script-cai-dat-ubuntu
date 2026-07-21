@@ -9,7 +9,7 @@ cài bừa cả loạt.
 | Mục | Cách cài | Mặc định |
 |-----|----------|:--------:|
 | Google Chrome | `.deb` chính thức | ✅ ON |
-| Telegram Desktop | Snap | ✅ ON |
+| Telegram Desktop | Flatpak (Flathub) | ✅ ON |
 | ibus-bamboo (bộ gõ tiếng Việt) | PPA | ✅ ON |
 | Microsoft Edge | Flatpak (Flathub) | ⬜ OFF |
 | Cốc Cốc (trình duyệt Việt Nam) | repo chính thức | ⬜ OFF |
@@ -62,9 +62,11 @@ Trong màn hình chọn: dùng **mũi tên** để di chuyển, **SPACE** để 
 Chạy được trên các bản nền Ubuntu, tự nhận diện desktop để **không cài chéo**:
 
 - **Ubuntu (GNOME)** — đầy đủ, gán phím Flameshot tự động.
-- **Kubuntu (KDE)** — cài portal KDE, Telegram tự cài `snapd`, phím Flameshot gán tay.
-- **Linux Mint (Cinnamon/MATE/Xfce)** — Telegram cài qua Flatpak (Mint chặn snap),
-  portal `gtk`, phím Flameshot gán tay.
+- **Kubuntu (KDE)** — cài portal KDE, phím Flameshot gán tay.
+- **Linux Mint (Cinnamon/MATE/Xfce)** — portal `gtk`, phím Flameshot gán tay.
+
+Các app nhắn tin/office (Telegram, WeChat, WPS, Edge, Rclone UI) đều cài qua
+**Flatpak/Flathub** nên giống nhau trên mọi bản.
 
 Lưu ý: **LMDE** (Mint bản Debian) không dùng được PPA nên ibus-bamboo sẽ không cài
 được; các mục khác vẫn chạy.

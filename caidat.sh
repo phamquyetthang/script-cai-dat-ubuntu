@@ -46,7 +46,7 @@ CHOICES=$(whiptail --title "Chọn phần mềm cần cài" \
   --checklist "Dùng phím MŨI TÊN để di chuyển, SPACE để tick chọn, ENTER để xác nhận:" \
   22 80 15 \
   "chrome"   "Google Chrome"                                   ON \
-  "telegram" "Telegram Desktop (qua Snap)"                     ON \
+  "telegram" "Telegram Desktop (qua Flatpak/Flathub)"          ON \
   "ibus"     "ibus-bamboo (bộ gõ tiếng Việt)"                  ON \
   "edge"     "Microsoft Edge (qua Flatpak/Flathub)"            OFF \
   "coccoc"   "Cốc Cốc (trình duyệt Việt Nam)"                  OFF \
@@ -77,7 +77,6 @@ is_selected() {
 have_cmd()     { command -v "$1" >/dev/null 2>&1; }
 have_deb()     { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"; }
 have_flatpak() { flatpak info --system "$1" >/dev/null 2>&1; }   # trả false nếu chưa có flatpak
-have_snap()    { snap list "$1" >/dev/null 2>&1; }                # trả false nếu chưa có snap
 skip_msg()     { echo "=== $1 đã cài rồi, bỏ qua. ==="; }
 
 # ==========================================================================
@@ -92,24 +91,10 @@ install_chrome() {
 }
 
 install_telegram() {
-  # Linux Mint chặn snap mặc định (nosnap.pref) -> cài qua Flatpak thay thế.
-  if [[ "$DISTRO_ID" == "linuxmint" ]]; then
-    if have_flatpak org.telegram.desktop; then skip_msg "Telegram"; return; fi
-    echo "=== Đang cài Telegram (qua Flatpak - Mint chặn snap) ==="
-    ensure_flatpak
-    sudo flatpak install --system -y flathub org.telegram.desktop
-    return
-  fi
-
-  if have_snap telegram-desktop; then skip_msg "Telegram"; return; fi
-  echo "=== Đang cài Telegram (qua Snap) ==="
-  # Kubuntu thường KHÔNG cài sẵn snapd -> cài trước cho chắc (Ubuntu đã có sẵn)
-  if ! command -v snap >/dev/null 2>&1; then
-    echo "  -> Chưa có snap, đang cài snapd..."
-    sudo apt update
-    sudo apt install -y snapd
-  fi
-  sudo snap install telegram-desktop
+  if have_flatpak org.telegram.desktop; then skip_msg "Telegram"; return; fi
+  echo "=== Đang cài Telegram (qua Flatpak) ==="
+  ensure_flatpak
+  sudo flatpak install --system -y flathub org.telegram.desktop
 }
 
 # Hàm dùng chung: đảm bảo có lệnh add-apt-repository (thêm PPA/multiverse).
@@ -422,6 +407,10 @@ is_selected flameshot && install_flameshot
 
 echo ""
 echo "=== XONG! ==="
+if is_selected telegram; then
+  echo "[Telegram] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
+  echo "[Telegram] Chạy tay bằng lệnh: flatpak run org.telegram.desktop"
+fi
 if is_selected wechat; then
   echo "[WeChat] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
   echo "[WeChat] Chạy tay bằng lệnh: flatpak run com.tencent.WeChat"
