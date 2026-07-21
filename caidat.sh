@@ -172,14 +172,26 @@ install_msfonts() {
 }
 
 install_archive() {
-  if have_deb unrar && have_deb p7zip-full; then skip_msg "Bộ giải nén RAR/7z"; return; fi
+  # Kiểm tra theo LỆNH (tên gói khác nhau giữa các bản Ubuntu) cho chắc:
+  #   rar: unrar hoặc unar | 7z: 7z (p7zip-full) hoặc 7zz (gói 7zip mới)
+  if { have_cmd unrar || have_cmd unar; } && { have_cmd 7z || have_cmd 7zz; }; then
+    skip_msg "Bộ giải nén RAR/7z"; return
+  fi
   echo "=== Đang cài bộ giải nén RAR/7z ==="
   # unrar nằm trong kho multiverse -> bật lên trước
   ensure_ppa_tool
   sudo add-apt-repository -y multiverse
   sudo apt update
-  # unrar: giải nén .rar (kể cả RAR5) | p7zip: .7z và các định dạng khác
-  sudo apt install -y unrar p7zip-full p7zip-rar
+
+  # unrar: giải nén .rar. Bản không có 'unrar' thì thử unrar-free/unar.
+  sudo apt install -y unrar || sudo apt install -y unrar-free || sudo apt install -y unar
+
+  # 7z: Ubuntu mới đổi 'p7zip-full' -> '7zip'. Cài cái nào có.
+  sudo apt install -y 7zip || sudo apt install -y p7zip-full
+
+  # p7zip-rar đã bị bỏ ở Ubuntu mới; gói 7zip/unrar đã lo được .rar rồi nên
+  # cái này chỉ là bonus -> có thì cài, không có cũng không sao (không chết).
+  sudo apt install -y p7zip-rar 2>/dev/null || true
 }
 
 install_anydesk() {
