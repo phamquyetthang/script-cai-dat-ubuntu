@@ -71,11 +71,21 @@ is_selected() {
   [[ "$CHOICES" == *"\"$1\""* ]]
 }
 
+# --------------------------------------------------------------------------
+# Helper kiểm tra "đã cài chưa" -> để bỏ qua, tránh cài lại + tránh lỗi trùng
+# --------------------------------------------------------------------------
+have_cmd()     { command -v "$1" >/dev/null 2>&1; }
+have_deb()     { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"; }
+have_flatpak() { flatpak info --system "$1" >/dev/null 2>&1; }   # trả false nếu chưa có flatpak
+have_snap()    { snap list "$1" >/dev/null 2>&1; }                # trả false nếu chưa có snap
+skip_msg()     { echo "=== $1 đã cài rồi, bỏ qua. ==="; }
+
 # ==========================================================================
 # Các hàm cài đặt cho từng phần mềm
 # ==========================================================================
 
 install_chrome() {
+  if have_cmd google-chrome-stable || have_cmd google-chrome; then skip_msg "Chrome"; return; fi
   echo "=== Đang cài Chrome ==="
   wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb
   sudo apt install -y /tmp/chrome.deb
@@ -84,12 +94,14 @@ install_chrome() {
 install_telegram() {
   # Linux Mint chặn snap mặc định (nosnap.pref) -> cài qua Flatpak thay thế.
   if [[ "$DISTRO_ID" == "linuxmint" ]]; then
+    if have_flatpak org.telegram.desktop; then skip_msg "Telegram"; return; fi
     echo "=== Đang cài Telegram (qua Flatpak - Mint chặn snap) ==="
     ensure_flatpak
     sudo flatpak install --system -y flathub org.telegram.desktop
     return
   fi
 
+  if have_snap telegram-desktop; then skip_msg "Telegram"; return; fi
   echo "=== Đang cài Telegram (qua Snap) ==="
   # Kubuntu thường KHÔNG cài sẵn snapd -> cài trước cho chắc (Ubuntu đã có sẵn)
   if ! command -v snap >/dev/null 2>&1; then
@@ -126,24 +138,28 @@ ensure_flatpak() {
 }
 
 install_wechat() {
+  if have_flatpak com.tencent.WeChat; then skip_msg "WeChat"; return; fi
   echo "=== Đang cài WeChat (qua Flatpak) ==="
   ensure_flatpak
   sudo flatpak install --system -y flathub com.tencent.WeChat
 }
 
 install_wps() {
+  if have_flatpak com.wps.Office; then skip_msg "WPS Office"; return; fi
   echo "=== Đang cài WPS Office (qua Flatpak) ==="
   ensure_flatpak
   sudo flatpak install --system -y flathub com.wps.Office
 }
 
 install_edge() {
+  if have_flatpak com.microsoft.Edge; then skip_msg "Microsoft Edge"; return; fi
   echo "=== Đang cài Microsoft Edge (qua Flatpak) ==="
   ensure_flatpak
   sudo flatpak install --system -y flathub com.microsoft.Edge
 }
 
 install_coccoc() {
+  if have_deb coccoc-browser-stable; then skip_msg "Cốc Cốc"; return; fi
   echo "=== Đang cài Cốc Cốc (trình duyệt Việt Nam) ==="
   # Thêm repo chính thức của Cốc Cốc rồi cài qua apt
   sudo apt install -y curl
@@ -156,6 +172,7 @@ install_coccoc() {
 }
 
 install_msfonts() {
+  if have_deb ttf-mscorefonts-installer; then skip_msg "Font Microsoft"; return; fi
   echo "=== Đang cài font Microsoft (Times New Roman, Arial...) ==="
   # Font MS nằm trong kho multiverse -> bật lên trước
   ensure_ppa_tool
@@ -170,6 +187,7 @@ install_msfonts() {
 }
 
 install_archive() {
+  if have_deb unrar && have_deb p7zip-full; then skip_msg "Bộ giải nén RAR/7z"; return; fi
   echo "=== Đang cài bộ giải nén RAR/7z ==="
   # unrar nằm trong kho multiverse -> bật lên trước
   ensure_ppa_tool
@@ -180,14 +198,15 @@ install_archive() {
 }
 
 install_anydesk() {
+  if have_deb anydesk || have_cmd anydesk; then skip_msg "AnyDesk"; return; fi
   echo "=== Đang cài AnyDesk ==="
   # AnyDesk không có trên kho Ubuntu -> thêm repo chính thức của họ
   sudo apt update
   sudo apt install -y ca-certificates curl apt-transport-https
   sudo install -m 0755 -d /etc/apt/keyrings
-  # Thêm khóa GPG của AnyDesk
+  # Thêm khóa GPG của AnyDesk (--yes để ghi đè khi chạy lại, tránh gpg báo lỗi)
   curl -fsSL https://keys.anydesk.com/repos/DEB-GPG-KEY \
-    | sudo gpg --dearmor -o /etc/apt/keyrings/anydesk.gpg
+    | sudo gpg --yes --dearmor -o /etc/apt/keyrings/anydesk.gpg
   sudo chmod a+r /etc/apt/keyrings/anydesk.gpg
   # Thêm nguồn cài đặt (ký bằng khóa vừa thêm)
   echo "deb [signed-by=/etc/apt/keyrings/anydesk.gpg] http://deb.anydesk.com/ all main" \
@@ -197,6 +216,7 @@ install_anydesk() {
 }
 
 install_vlc() {
+  if have_cmd vlc; then skip_msg "VLC"; return; fi
   echo "=== Đang cài VLC ==="
   sudo apt install -y vlc
 }
@@ -204,9 +224,13 @@ install_vlc() {
 install_rclone() {
   echo "=== Đang cài Rclone UI (app desktop) ==="
   # Cài rclone CLI trước (Rclone UI dùng rclone ở bên dưới; và để có lệnh nền)
-  sudo apt install -y rclone
+  have_cmd rclone && echo "  -> rclone CLI đã có." || sudo apt install -y rclone
 
-  # Tải bản .deb chính thức của Rclone UI rồi cài như Chrome.
+  # Rclone UI cài qua .deb. Nếu đã có gói thì bỏ qua tải lại.
+  if dpkg -l 2>/dev/null | grep -qiE 'rclone.?ui'; then
+    echo "  -> Rclone UI đã cài, bỏ qua tải lại."
+    return
+  fi
   # get.rcloneui.com/linux-deb tự chuyển hướng tới bản mới nhất; wget bám theo.
   echo "  -> Tải bản .deb mới nhất của Rclone UI..."
   wget -L https://get.rcloneui.com/linux-deb -O /tmp/rcloneui.deb
@@ -214,6 +238,7 @@ install_rclone() {
 }
 
 install_fcitx5() {
+  if have_deb fcitx5-unikey; then skip_msg "fcitx5 + Unikey"; return; fi
   echo "=== Đang cài fcitx5 + Unikey ==="
   sudo apt update
   # fcitx5 lõi + Unikey (bộ gõ tiếng Việt) + các module cầu nối cho GTK/Qt/Wayland
@@ -284,12 +309,13 @@ EOF
 }
 
 install_ibus() {
+  if have_deb ibus-bamboo; then skip_msg "ibus-bamboo"; return; fi
   echo "=== Đang cài ibus-bamboo ==="
   ensure_ppa_tool
   sudo add-apt-repository -y ppa:bamboo-engine/ibus-bamboo
   sudo apt update
   sudo apt install -y ibus-bamboo
-  ibus restart
+  ibus restart || true   # tránh set -e giết script nếu ibus chưa chạy
 }
 
 # Gán phím Ctrl+Shift+S cho Flameshot trên GNOME (dùng gsettings).
@@ -319,6 +345,7 @@ flameshot_shortcut_gnome() {
 }
 
 install_flameshot() {
+  if have_cmd flameshot; then skip_msg "Flameshot"; return; fi
   echo "=== Đang cài Flameshot ==="
   # Portal cài ĐÚNG theo desktop, KHÔNG cài chéo:
   #   GNOME -> gnome | KDE -> kde | Cinnamon/MATE/Xfce/khác -> gtk
