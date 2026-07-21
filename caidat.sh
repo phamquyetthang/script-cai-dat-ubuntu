@@ -12,6 +12,19 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # ==========================================================================
+# Phát hiện môi trường desktop: GNOME (Ubuntu) hay KDE (Kubuntu)
+# ==========================================================================
+# Mục đích: cài ĐÚNG phần cho từng desktop, KHÔNG cài chéo (Ubuntu không dính
+# gói KDE và ngược lại). Các phần đụng desktop: portal + phím tắt Flameshot.
+DESKTOP_ENV="gnome"   # mặc định coi như GNOME nếu không nhận diện được
+case "${XDG_CURRENT_DESKTOP,,}" in
+  *kde*|*plasma*)          DESKTOP_ENV="kde" ;;
+  *gnome*|*unity*|*ubuntu*) DESKTOP_ENV="gnome" ;;
+  *) echo "⚠️  Không nhận diện được desktop (XDG_CURRENT_DESKTOP='${XDG_CURRENT_DESKTOP:-trống}'), tạm coi là GNOME." ;;
+esac
+echo "Desktop nhận diện được: $DESKTOP_ENV"
+
+# ==========================================================================
 # Bước hỏi: hiện checkbox cho user tick chọn cài cái gì
 # ==========================================================================
 # Dùng whiptail (có sẵn trên Ubuntu). Nếu không có thì cài dialog/whiptail.
@@ -62,7 +75,20 @@ install_chrome() {
 
 install_telegram() {
   echo "=== Đang cài Telegram (qua Snap) ==="
+  # Kubuntu thường KHÔNG cài sẵn snapd -> cài trước cho chắc (Ubuntu đã có sẵn)
+  if ! command -v snap >/dev/null 2>&1; then
+    echo "  -> Chưa có snap, đang cài snapd..."
+    sudo apt update
+    sudo apt install -y snapd
+  fi
   sudo snap install telegram-desktop
+}
+
+# Hàm dùng chung: đảm bảo có lệnh add-apt-repository (thêm PPA/multiverse).
+# Kubuntu đôi khi không cài sẵn -> cài software-properties-common.
+ensure_ppa_tool() {
+  command -v add-apt-repository >/dev/null 2>&1 \
+    || sudo apt install -y software-properties-common
 }
 
 # Hàm dùng chung: đảm bảo có flatpak + kho Flathub (mức hệ thống).
@@ -116,6 +142,7 @@ install_coccoc() {
 install_msfonts() {
   echo "=== Đang cài font Microsoft (Times New Roman, Arial...) ==="
   # Font MS nằm trong kho multiverse -> bật lên trước
+  ensure_ppa_tool
   sudo add-apt-repository -y multiverse
   sudo apt update
   # Tự đồng ý EULA để không bị kẹt ở màn hình hỏi (script chạy suôn)
@@ -129,6 +156,7 @@ install_msfonts() {
 install_archive() {
   echo "=== Đang cài bộ giải nén RAR/7z ==="
   # unrar nằm trong kho multiverse -> bật lên trước
+  ensure_ppa_tool
   sudo add-apt-repository -y multiverse
   sudo apt update
   # unrar: giải nén .rar (kể cả RAR5) | p7zip: .7z và các định dạng khác
@@ -241,36 +269,29 @@ EOF
 
 install_ibus() {
   echo "=== Đang cài ibus-bamboo ==="
+  ensure_ppa_tool
   sudo add-apt-repository -y ppa:bamboo-engine/ibus-bamboo
   sudo apt update
   sudo apt install -y ibus-bamboo
   ibus restart
 }
 
-install_flameshot() {
-  echo "=== Đang cài Flameshot ==="
-  sudo apt install -y flameshot xdg-desktop-portal xdg-desktop-portal-gnome
+# Gán phím Ctrl+Shift+S cho Flameshot trên GNOME (dùng gsettings).
+# Tách riêng để chỉ chạy khi desktop là GNOME.
+flameshot_shortcut_gnome() {
+  echo "=== (GNOME) Đang gán phím Ctrl+Shift+S cho Flameshot ==="
+  local KEY_BASE="org.gnome.settings-daemon.plugins.media-keys"
+  local CUSTOM_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-flameshot/"
 
-  echo "=== Đang cấp quyền chụp màn hình cho Flameshot (fix lỗi Wayland 'Unable to capture screen') ==="
-  # Xóa quyền cũ (nếu từng bị từ chối) để GNOME hỏi lại quyền chụp màn hình
-  dbus-send --session --print-reply=literal \
-    --dest=org.freedesktop.impl.portal.PermissionStore \
-    /org/freedesktop/impl/portal/PermissionStore \
-    org.freedesktop.impl.portal.PermissionStore.Delete \
-    string:'screenshot' string:'screenshot' 2>/dev/null || true
-
-  echo "=== Đang gán phím Ctrl+Shift+S cho Flameshot ==="
-  # Thêm custom shortcut mới gọi Flameshot bằng tổ hợp Ctrl+Shift+S
-  KEY_BASE="org.gnome.settings-daemon.plugins.media-keys"
-  CUSTOM_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom-flameshot/"
-
+  local EXISTING
   EXISTING=$(gsettings get $KEY_BASE custom-keybindings)
   if [[ "$EXISTING" != *"custom-flameshot"* ]]; then
+    local NEW_LIST
     if [[ "$EXISTING" == "@as []" || "$EXISTING" == "[]" ]]; then
       NEW_LIST="['$CUSTOM_PATH']"
     else
       # Bỏ dấu ']' cuối chuỗi rồi nối thêm phần tử mới (tránh dùng sed vì CUSTOM_PATH chứa dấu '/')
-      TRIMMED="${EXISTING%]}"
+      local TRIMMED="${EXISTING%]}"
       NEW_LIST="${TRIMMED}, '$CUSTOM_PATH']"
     fi
     gsettings set $KEY_BASE custom-keybindings "$NEW_LIST"
@@ -279,8 +300,39 @@ install_flameshot() {
   gsettings set $KEY_BASE.custom-keybinding:$CUSTOM_PATH name 'Flameshot'
   gsettings set $KEY_BASE.custom-keybinding:$CUSTOM_PATH command 'flameshot gui'
   gsettings set $KEY_BASE.custom-keybinding:$CUSTOM_PATH binding '<Control><Shift>s'
+}
 
-  # Cho Flameshot tự chạy nền mỗi khi khởi động máy
+install_flameshot() {
+  echo "=== Đang cài Flameshot ==="
+  # Portal cài ĐÚNG theo desktop, KHÔNG cài chéo:
+  #   GNOME -> xdg-desktop-portal-gnome | KDE -> xdg-desktop-portal-kde
+  if [[ "$DESKTOP_ENV" == "kde" ]]; then
+    sudo apt install -y flameshot xdg-desktop-portal xdg-desktop-portal-kde
+  else
+    sudo apt install -y flameshot xdg-desktop-portal xdg-desktop-portal-gnome
+  fi
+
+  echo "=== Đang cấp quyền chụp màn hình cho Flameshot (fix lỗi Wayland 'Unable to capture screen') ==="
+  # PermissionStore là của xdg-desktop-portal (dùng chung cho cả GNOME lẫn KDE).
+  # Xóa quyền cũ để hệ thống hỏi lại quyền chụp màn hình.
+  dbus-send --session --print-reply=literal \
+    --dest=org.freedesktop.impl.portal.PermissionStore \
+    /org/freedesktop/impl/portal/PermissionStore \
+    org.freedesktop.impl.portal.PermissionStore.Delete \
+    string:'screenshot' string:'screenshot' 2>/dev/null || true
+
+  # Gán phím tắt: GNOME làm tự động; KDE thì hướng dẫn làm tay (KDE dùng cơ
+  # chế phím tắt riêng, không qua gsettings).
+  if [[ "$DESKTOP_ENV" == "gnome" ]]; then
+    flameshot_shortcut_gnome
+  else
+    echo "=== (KDE) Không tự gán phím được qua script. Gán tay: ==="
+    echo "    System Settings > Shortcuts > Add New > Command or Script: flameshot gui"
+    echo "    rồi đặt tổ hợp phím Ctrl+Shift+S."
+  fi
+
+  # Cho Flameshot tự chạy nền mỗi khi khởi động máy (chuẩn freedesktop, dùng
+  # được cho cả GNOME lẫn KDE).
   mkdir -p ~/.config/autostart
   cat > ~/.config/autostart/flameshot.desktop << 'EOF'
 [Desktop Entry]
@@ -347,9 +399,17 @@ if is_selected fcitx5; then
 fi
 if is_selected ibus && [[ "${SKIP_IBUS:-0}" != "1" ]]; then
   echo "[ibus] Nhớ đăng xuất/khởi động lại máy để dùng được ibus-bamboo (bộ gõ tiếng Việt)."
-  echo "[ibus] Sau khi khởi động lại, vào Settings > Keyboard > Input Sources, thêm 'Bamboo' để dùng."
+  if [[ "$DESKTOP_ENV" == "kde" ]]; then
+    echo "[ibus] KDE: vào System Settings > Input Devices/Virtual Keyboard để thêm 'Bamboo'. (Trên KDE fcitx5 mượt hơn ibus.)"
+  else
+    echo "[ibus] Sau khi khởi động lại, vào Settings > Keyboard > Input Sources, thêm 'Bamboo' để dùng."
+  fi
 fi
 if is_selected flameshot; then
-  echo "Flameshot đã được gán vào tổ hợp Ctrl+Shift+S, dùng thử ngay được (có thể cần đăng xuất/đăng nhập lại nếu chưa nhận phím)."
-  echo "Lần đầu bấm Ctrl+Shift+S, nếu GNOME hiện hộp thoại xin quyền chụp màn hình, nhớ bấm Allow/Cho phép."
+  if [[ "$DESKTOP_ENV" == "gnome" ]]; then
+    echo "[Flameshot] Đã gán tổ hợp Ctrl+Shift+S, dùng thử ngay được (có thể cần đăng xuất/đăng nhập lại nếu chưa nhận phím)."
+  else
+    echo "[Flameshot] (KDE) Chưa gán phím tự động. Vào System Settings > Shortcuts thêm lệnh 'flameshot gui' với tổ hợp Ctrl+Shift+S."
+  fi
+  echo "[Flameshot] Lần đầu bấm phím chụp, nếu hệ thống hiện hộp thoại xin quyền chụp màn hình, nhớ bấm Allow/Cho phép."
 fi
