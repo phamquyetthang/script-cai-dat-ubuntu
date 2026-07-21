@@ -12,17 +12,25 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # ==========================================================================
-# Phát hiện môi trường desktop: GNOME (Ubuntu) hay KDE (Kubuntu)
+# Phát hiện môi trường desktop + bản phân phối (distro)
 # ==========================================================================
 # Mục đích: cài ĐÚNG phần cho từng desktop, KHÔNG cài chéo (Ubuntu không dính
-# gói KDE và ngược lại). Các phần đụng desktop: portal + phím tắt Flameshot.
-DESKTOP_ENV="gnome"   # mặc định coi như GNOME nếu không nhận diện được
+# gói KDE và ngược lại). Hỗ trợ: GNOME (Ubuntu), KDE (Kubuntu),
+# Cinnamon/MATE/Xfce (Linux Mint). Các phần đụng desktop: portal + phím Flameshot.
+DESKTOP_ENV="unknown"
 case "${XDG_CURRENT_DESKTOP,,}" in
-  *kde*|*plasma*)          DESKTOP_ENV="kde" ;;
-  *gnome*|*unity*|*ubuntu*) DESKTOP_ENV="gnome" ;;
-  *) echo "⚠️  Không nhận diện được desktop (XDG_CURRENT_DESKTOP='${XDG_CURRENT_DESKTOP:-trống}'), tạm coi là GNOME." ;;
+  *kde*|*plasma*)  DESKTOP_ENV="kde" ;;
+  *gnome*|*unity*) DESKTOP_ENV="gnome" ;;
+  *cinnamon*)      DESKTOP_ENV="cinnamon" ;;
+  *mate*)          DESKTOP_ENV="mate" ;;
+  *xfce*)          DESKTOP_ENV="xfce" ;;
+  *) echo "⚠️  Không nhận diện được desktop (XDG_CURRENT_DESKTOP='${XDG_CURRENT_DESKTOP:-trống}'), dùng cấu hình an toàn chung." ;;
 esac
-echo "Desktop nhận diện được: $DESKTOP_ENV"
+
+# Nhận diện distro qua /etc/os-release (linuxmint/ubuntu/...) trong subshell
+DISTRO_ID="$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}" )"
+
+echo "Desktop: $DESKTOP_ENV | Distro: $DISTRO_ID"
 
 # ==========================================================================
 # Bước hỏi: hiện checkbox cho user tick chọn cài cái gì
@@ -74,6 +82,14 @@ install_chrome() {
 }
 
 install_telegram() {
+  # Linux Mint chặn snap mặc định (nosnap.pref) -> cài qua Flatpak thay thế.
+  if [[ "$DISTRO_ID" == "linuxmint" ]]; then
+    echo "=== Đang cài Telegram (qua Flatpak - Mint chặn snap) ==="
+    ensure_flatpak
+    sudo flatpak install --system -y flathub org.telegram.desktop
+    return
+  fi
+
   echo "=== Đang cài Telegram (qua Snap) ==="
   # Kubuntu thường KHÔNG cài sẵn snapd -> cài trước cho chắc (Ubuntu đã có sẵn)
   if ! command -v snap >/dev/null 2>&1; then
@@ -305,12 +321,14 @@ flameshot_shortcut_gnome() {
 install_flameshot() {
   echo "=== Đang cài Flameshot ==="
   # Portal cài ĐÚNG theo desktop, KHÔNG cài chéo:
-  #   GNOME -> xdg-desktop-portal-gnome | KDE -> xdg-desktop-portal-kde
-  if [[ "$DESKTOP_ENV" == "kde" ]]; then
-    sudo apt install -y flameshot xdg-desktop-portal xdg-desktop-portal-kde
-  else
-    sudo apt install -y flameshot xdg-desktop-portal xdg-desktop-portal-gnome
-  fi
+  #   GNOME -> gnome | KDE -> kde | Cinnamon/MATE/Xfce/khác -> gtk
+  local PORTAL_PKG
+  case "$DESKTOP_ENV" in
+    kde)   PORTAL_PKG="xdg-desktop-portal-kde" ;;
+    gnome) PORTAL_PKG="xdg-desktop-portal-gnome" ;;
+    *)     PORTAL_PKG="xdg-desktop-portal-gtk" ;;
+  esac
+  sudo apt install -y flameshot xdg-desktop-portal "$PORTAL_PKG"
 
   echo "=== Đang cấp quyền chụp màn hình cho Flameshot (fix lỗi Wayland 'Unable to capture screen') ==="
   # PermissionStore là của xdg-desktop-portal (dùng chung cho cả GNOME lẫn KDE).
@@ -326,9 +344,15 @@ install_flameshot() {
   if [[ "$DESKTOP_ENV" == "gnome" ]]; then
     flameshot_shortcut_gnome
   else
-    echo "=== (KDE) Không tự gán phím được qua script. Gán tay: ==="
-    echo "    System Settings > Shortcuts > Add New > Command or Script: flameshot gui"
-    echo "    rồi đặt tổ hợp phím Ctrl+Shift+S."
+    echo "=== ($DESKTOP_ENV) Không tự gán phím được qua script -> gán tay với lệnh 'flameshot gui': ==="
+    case "$DESKTOP_ENV" in
+      kde)      echo "    System Settings > Shortcuts > Add New > Command or Script" ;;
+      cinnamon) echo "    System Settings > Keyboard > Shortcuts > Custom Shortcuts > Add" ;;
+      mate)     echo "    Control Center > Keyboard Shortcuts > Add" ;;
+      xfce)     echo "    Settings > Keyboard > Application Shortcuts > Add" ;;
+      *)        echo "    Mở phần cài đặt phím tắt của desktop, thêm lệnh mới" ;;
+    esac
+    echo "    đặt lệnh 'flameshot gui' cho tổ hợp phím Ctrl+Shift+S."
   fi
 
   # Cho Flameshot tự chạy nền mỗi khi khởi động máy (chuẩn freedesktop, dùng
@@ -409,7 +433,7 @@ if is_selected flameshot; then
   if [[ "$DESKTOP_ENV" == "gnome" ]]; then
     echo "[Flameshot] Đã gán tổ hợp Ctrl+Shift+S, dùng thử ngay được (có thể cần đăng xuất/đăng nhập lại nếu chưa nhận phím)."
   else
-    echo "[Flameshot] (KDE) Chưa gán phím tự động. Vào System Settings > Shortcuts thêm lệnh 'flameshot gui' với tổ hợp Ctrl+Shift+S."
+    echo "[Flameshot] ($DESKTOP_ENV) Chưa gán phím tự động. Xem hướng dẫn gán tay 'flameshot gui' + Ctrl+Shift+S ở phần cài đặt phím tắt của desktop (in ở trên)."
   fi
   echo "[Flameshot] Lần đầu bấm phím chụp, nếu hệ thống hiện hộp thoại xin quyền chụp màn hình, nhớ bấm Allow/Cho phép."
 fi

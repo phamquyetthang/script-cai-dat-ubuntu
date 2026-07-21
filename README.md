@@ -59,8 +59,15 @@ Trong màn hình chọn: dùng **mũi tên** để di chuyển, **SPACE** để 
 
 ## Môi trường
 
-Viết cho **Ubuntu (GNOME)**. Một số bước dùng `gsettings`/GNOME nên hợp nhất với
-Ubuntu bản GNOME mặc định.
+Chạy được trên các bản nền Ubuntu, tự nhận diện desktop để **không cài chéo**:
+
+- **Ubuntu (GNOME)** — đầy đủ, gán phím Flameshot tự động.
+- **Kubuntu (KDE)** — cài portal KDE, Telegram tự cài `snapd`, phím Flameshot gán tay.
+- **Linux Mint (Cinnamon/MATE/Xfce)** — Telegram cài qua Flatpak (Mint chặn snap),
+  portal `gtk`, phím Flameshot gán tay.
+
+Lưu ý: **LMDE** (Mint bản Debian) không dùng được PPA nên ibus-bamboo sẽ không cài
+được; các mục khác vẫn chạy.
 
 ## Giấy phép
 
