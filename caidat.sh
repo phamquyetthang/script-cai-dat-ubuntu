@@ -59,6 +59,9 @@ install_menu_launcher() {
   local script_path apps_dir
   script_path="$(readlink -f "$0" 2>/dev/null)" || return 0
   [[ -f "$script_path" ]] || return 0
+  # Nếu chạy từ bản cài .deb (/usr/...) thì đã có launcher hệ thống rồi -> khỏi
+  # tạo bản trùng trong ~/.local.
+  case "$script_path" in /usr/*) return 0 ;; esac
   apps_dir="$HOME/.local/share/applications"
   mkdir -p "$apps_dir"
   cat > "$apps_dir/cai-dat-phan-mem.desktop" <<EOF

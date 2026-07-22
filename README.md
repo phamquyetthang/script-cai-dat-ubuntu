@@ -31,23 +31,26 @@ Script tự nhận biết môi trường:
   cửa sổ, có thanh tiến trình. Không cần dùng terminal.
 - **Chạy trong terminal** (không có đồ hoạ) → hiện checkbox `whiptail`.
 
-### Cho người dùng cuối (không rành máy)
+### Cho người dùng cuối (không rành máy) — dùng file `.deb` ⭐
 
-> GNOME không cho chạy file `.desktop` nằm trong thư mục thường (double-click chỉ
-> mở text editor). Nên **lần đầu** chạy `caidat.sh` như dưới; sau đó script tự
-> thêm icon **"Cài đặt phần mềm văn phòng"** vào **Menu ứng dụng** — lần sau chỉ
-> cần bấm icon đó.
+Cách dễ nhất: chỉ cần gửi cho họ **một file `.deb`**.
 
-**Lần đầu chạy:**
-1. Tải thư mục về (**Code ▸ Download ZIP** trên GitHub rồi giải nén).
-2. Chuột phải **`caidat.sh`** → **Properties ▸ Permissions** → tick **"Allow
-   executing file as program"** (Cho phép chạy như chương trình).
-3. Chuột phải **`caidat.sh`** → **Run as a Program** (Chạy như chương trình).
-   - _Mint/Xfce/KDE:_ có thể double-click thẳng `caidat.sh` rồi chọn **Run**.
-4. Cửa sổ tick chọn hiện lên → chọn app → **OK** → nhập mật khẩu → chờ xong.
+1. Tải **`cai-dat-phan-mem_x.y.z_all.deb`** ở mục
+   [**Releases**](https://github.com/phamquyetthang/script-cai-dat-ubuntu/releases).
+2. **Double-click** file `.deb` → trình cài phần mềm mở ra → bấm **Install/Cài đặt**
+   → nhập mật khẩu.
+3. Xong, mở **Menu ứng dụng**, tìm **"Cài đặt phần mềm văn phòng"** → bấm là chạy
+   (hiện cửa sổ tick chọn → OK → cài).
 
-**Những lần sau:** mở **Menu ứng dụng**, tìm **"Cài đặt phần mềm văn phòng"**,
-bấm vào là chạy.
+> `.deb` chỉ chép script + icon vào máy (rất nhẹ); phần mềm thật vẫn tải khi bấm chạy.
+
+**Tự build file `.deb`** (nếu muốn tạo lại): `./build-deb.sh`
+
+### Chạy trực tiếp không qua `.deb`
+
+Tải ZIP, giải nén, rồi chuột phải **`caidat.sh`** → Properties ▸ Permissions →
+tick "Allow executing file as program", sau đó chuột phải → **Run as a Program**.
+Lần đầu chạy xong script tự thêm icon vào Menu ứng dụng cho các lần sau.
 
 ### Cho người rành dùng dòng lệnh
 

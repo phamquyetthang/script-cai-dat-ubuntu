@@ -1,0 +1,13 @@
+Package: cai-dat-phan-mem
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: bash, zenity, wget, curl, ca-certificates
+Recommends: flatpak
+Maintainer: phamquyetthang <phamquyetthang@users.noreply.github.com>
+Description: Trình cài đặt phần mềm văn phòng cho Ubuntu/Kubuntu/Mint
+ Hiện cửa sổ tick chọn rồi cài nhanh các phần mềm thường dùng cho dân
+ văn phòng Việt Nam: Chrome, Telegram, bộ gõ tiếng Việt (ibus-bamboo/
+ fcitx5+Unikey), WPS, Edge, Cốc Cốc, WeChat, Lark, font Microsoft,
+ giải nén RAR/7z, AnyDesk, VLC, Rclone UI, Flameshot.

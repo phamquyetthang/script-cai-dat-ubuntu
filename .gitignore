@@ -1,0 +1,2 @@
+# File .deb build ra (phát hành qua GitHub Releases, không commit vào repo)
+*.deb
