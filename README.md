@@ -26,9 +26,21 @@ cài bừa cả loạt.
 
 ## Cách dùng
 
-> ⚠️ **Không chạy bằng `sudo`** và **không chạy kiểu `curl ... | bash`**.
-> Script có giao diện checkbox (whiptail) và bước hỏi cần bàn phím, nếu pipe
-> qua `| bash` sẽ hỏng. Hãy **tải file về rồi chạy**.
+Script tự nhận biết môi trường:
+- **Có màn hình đồ hoạ** → hiện **cửa sổ tick chọn (zenity)**, hỏi mật khẩu bằng
+  cửa sổ, có thanh tiến trình. Không cần dùng terminal.
+- **Chạy trong terminal** (không có đồ hoạ) → hiện checkbox `whiptail`.
+
+### Cho người dùng cuối (không rành máy) — double-click
+
+1. Tải toàn bộ thư mục về (bấm **Code ▸ Download ZIP** trên GitHub rồi giải nén).
+2. Mở thư mục, **double-click** file **`cai-dat-phan-mem.desktop`**.
+   - Lần đầu trên GNOME/Ubuntu: chuột phải file → **Allow Launching** (Cho phép
+     chạy), rồi double-click lại.
+3. Cửa sổ hiện lên → tick phần mềm cần cài → **OK** → nhập mật khẩu máy → chờ
+   thanh tiến trình chạy xong.
+
+### Cho người rành dùng dòng lệnh
 
 ```bash
 git clone https://github.com/phamquyetthang/script-cai-dat-ubuntu.git
@@ -37,16 +49,8 @@ chmod +x caidat.sh
 ./caidat.sh
 ```
 
-Hoặc tải nhanh một file:
-
-```bash
-curl -o caidat.sh https://raw.githubusercontent.com/phamquyetthang/script-cai-dat-ubuntu/main/caidat.sh
-chmod +x caidat.sh
-./caidat.sh
-```
-
-Trong màn hình chọn: dùng **mũi tên** để di chuyển, **SPACE** để tick, **ENTER**
-để xác nhận. Script tự xin `sudo` khi cần.
+> ⚠️ **Không chạy bằng `sudo`** và **không `curl ... | bash`** — script tự xin
+> mật khẩu khi cần, và giao diện chọn cần bàn phím/đồ hoạ nên pipe sẽ hỏng.
 
 ## Ghi chú
 

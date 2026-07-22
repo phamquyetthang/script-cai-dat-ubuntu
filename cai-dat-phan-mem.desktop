@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Cài đặt phần mềm văn phòng
+Name[en]=Office Software Installer
+Comment=Chọn và cài phần mềm cho máy Ubuntu/Kubuntu/Mint
+Comment[en]=Pick and install apps for Ubuntu/Kubuntu/Mint
+Terminal=false
+Icon=system-software-install
+Categories=System;Utility;
+# %k = đường dẫn của chính file .desktop này -> lấy thư mục chứa nó rồi chạy caidat.sh
+Exec=bash -c 'p="%k"; p="${p#file://}"; d="$(dirname "$p")"; bash "$d/caidat.sh"'

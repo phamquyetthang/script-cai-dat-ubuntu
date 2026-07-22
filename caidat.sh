@@ -7,7 +7,12 @@ set -e
 # Nếu chạy nguyên script bằng sudo thì ~/.config/*, gsettings, im-config sẽ
 # tác động vào root thay vì user -> bộ gõ và phím tắt không có tác dụng.
 if [[ $EUID -eq 0 ]]; then
-  echo "Đừng chạy bằng sudo. Chạy: ./caidat.sh (script tự xin sudo khi cần)."
+  MSG="Đừng chạy bằng sudo/root. Hãy chạy dưới tài khoản người dùng thường (script tự xin mật khẩu khi cần)."
+  if command -v zenity >/dev/null 2>&1 && [[ -n "$DISPLAY$WAYLAND_DISPLAY" ]]; then
+    zenity --error --text "$MSG"
+  else
+    echo "$MSG"
+  fi
   exit 1
 fi
 
@@ -24,52 +29,100 @@ case "${XDG_CURRENT_DESKTOP,,}" in
   *cinnamon*)      DESKTOP_ENV="cinnamon" ;;
   *mate*)          DESKTOP_ENV="mate" ;;
   *xfce*)          DESKTOP_ENV="xfce" ;;
-  *) echo "⚠️  Không nhận diện được desktop (XDG_CURRENT_DESKTOP='${XDG_CURRENT_DESKTOP:-trống}'), dùng cấu hình an toàn chung." ;;
+  *) : ;;
 esac
 
 # Nhận diện distro qua /etc/os-release (linuxmint/ubuntu/...) trong subshell
 DISTRO_ID="$( . /etc/os-release 2>/dev/null; echo "${ID:-unknown}" )"
 
-echo "Desktop: $DESKTOP_ENV | Distro: $DISTRO_ID"
-
 # ==========================================================================
-# Bước hỏi: hiện checkbox cho user tick chọn cài cái gì
+# Chế độ giao diện: GUI (zenity) nếu có màn hình đồ hoạ, ngược lại Terminal
 # ==========================================================================
-# Dùng whiptail (có sẵn trên Ubuntu). Nếu không có thì cài dialog/whiptail.
-if ! command -v whiptail >/dev/null 2>&1; then
-  echo "Đang cài whiptail để hiện màn hình chọn..."
-  sudo apt install -y whiptail
+GUI=0
+if [[ -n "$DISPLAY$WAYLAND_DISPLAY" ]]; then
+  # Nếu chưa có zenity mà lại đang ở phiên đồ hoạ -> thử cài bằng pkexec (hộp
+  # thoại mật khẩu đồ hoạ), để người dùng không cần mở terminal.
+  if ! command -v zenity >/dev/null 2>&1 && command -v pkexec >/dev/null 2>&1; then
+    pkexec sh -c 'apt-get update -y; apt-get install -y zenity' >/dev/null 2>&1 || true
+  fi
+  command -v zenity >/dev/null 2>&1 && GUI=1
 fi
 
-# Danh sách phần mềm: tag "mô tả" trạng-thái-mặc-định
-CHOICES=$(whiptail --title "Chọn phần mềm cần cài" \
-  --checklist "Dùng phím MŨI TÊN để di chuyển, SPACE để tick chọn, ENTER để xác nhận:" \
-  22 80 16 \
-  "chrome"   "Google Chrome"                                   ON \
-  "telegram" "Telegram Desktop (qua Flatpak/Flathub)"          ON \
-  "ibus"     "ibus-bamboo (bộ gõ tiếng Việt)"                  ON \
-  "edge"     "Microsoft Edge (qua Flatpak/Flathub)"            OFF \
-  "coccoc"   "Cốc Cốc (trình duyệt Việt Nam)"                  OFF \
-  "wechat"   "WeChat (qua Flatpak/Flathub)"                    OFF \
-  "lark"     "Lark (Lark Suite - bản .deb chính thức)"         OFF \
-  "wps"      "WPS Office (qua Flatpak/Flathub)"                OFF \
-  "msfonts"  "Font Microsoft (Times New Roman, Arial...)"      OFF \
-  "archive"  "Bộ giải nén RAR/7z (unrar + p7zip)"              OFF \
-  "anydesk"  "AnyDesk (điều khiển máy từ xa)"                  OFF \
-  "vlc"      "VLC (xem video mọi định dạng)"                   OFF \
-  "rclone"   "Rclone UI (app đồng bộ Google Drive/cloud)"      OFF \
-  "fcitx5"   "fcitx5 + Unikey (bộ gõ tiếng Việt)"              OFF \
-  "flameshot" "Flameshot (chụp màn hình + phím tắt)"           OFF \
-  3>&1 1>&2 2>&3) || { echo "Đã hủy. Không cài gì cả."; exit 0; }
+echo "Desktop: $DESKTOP_ENV | Distro: $DISTRO_ID | Giao diện: $([[ $GUI == 1 ]] && echo GUI || echo Terminal)"
 
-if [[ -z "$CHOICES" ]]; then
-  echo "Bạn chưa tick chọn gì cả. Thoát."
+# ==========================================================================
+# Danh mục phần mềm (một nguồn duy nhất cho cả GUI lẫn Terminal)
+# ==========================================================================
+# Thứ tự hiển thị = thứ tự cài. Hàm cài của mỗi app là install_<tag>.
+APP_ORDER=(chrome telegram ibus edge coccoc wechat lark wps msfonts archive anydesk vlc rclone fcitx5 flameshot)
+declare -A APP_LABEL=(
+  [chrome]="Google Chrome"
+  [telegram]="Telegram Desktop (qua Flatpak/Flathub)"
+  [ibus]="ibus-bamboo (bộ gõ tiếng Việt)"
+  [edge]="Microsoft Edge (qua Flatpak/Flathub)"
+  [coccoc]="Cốc Cốc (trình duyệt Việt Nam)"
+  [wechat]="WeChat (qua Flatpak/Flathub)"
+  [lark]="Lark (Lark Suite - bản .deb chính thức)"
+  [wps]="WPS Office (qua Flatpak/Flathub)"
+  [msfonts]="Font Microsoft (Times New Roman, Arial...)"
+  [archive]="Bộ giải nén RAR/7z (unrar + p7zip)"
+  [anydesk]="AnyDesk (điều khiển máy từ xa)"
+  [vlc]="VLC (xem video mọi định dạng)"
+  [rclone]="Rclone UI (app đồng bộ Google Drive/cloud)"
+  [fcitx5]="fcitx5 + Unikey (bộ gõ tiếng Việt)"
+  [flameshot]="Flameshot (chụp màn hình + phím tắt)"
+)
+# Mặc định BẬT sẵn 3 cái quan trọng nhất
+declare -A APP_DEFAULT=(
+  [chrome]=ON [telegram]=ON [ibus]=ON
+  [edge]=OFF [coccoc]=OFF [wechat]=OFF [lark]=OFF [wps]=OFF [msfonts]=OFF
+  [archive]=OFF [anydesk]=OFF [vlc]=OFF [rclone]=OFF [fcitx5]=OFF [flameshot]=OFF
+)
+
+# ==========================================================================
+# Bước hỏi: cho user tick chọn cài cái gì (GUI: zenity | Terminal: whiptail)
+# ==========================================================================
+SELECTED=""   # danh sách tag đã chọn, cách nhau bằng dấu cách
+
+if [[ $GUI == 1 ]]; then
+  ZEN_ARGS=()
+  for tag in "${APP_ORDER[@]}"; do
+    [[ "${APP_DEFAULT[$tag]}" == ON ]] && chk=TRUE || chk=FALSE
+    ZEN_ARGS+=("$chk" "$tag" "${APP_LABEL[$tag]}")
+  done
+  RAW=$(zenity --list --checklist \
+    --title "Cài đặt phần mềm văn phòng" \
+    --text "Tick chọn phần mềm cần cài rồi bấm OK:" \
+    --width 620 --height 560 \
+    --column "Cài?" --column "tag" --column "Phần mềm" \
+    --hide-column=2 --print-column=2 --separator='|' \
+    "${ZEN_ARGS[@]}") || { echo "Đã huỷ."; exit 0; }
+  SELECTED="${RAW//|/ }"
+else
+  if ! command -v whiptail >/dev/null 2>&1; then
+    echo "Đang cài whiptail để hiện màn hình chọn..."
+    sudo apt install -y whiptail
+  fi
+  WT_ARGS=()
+  for tag in "${APP_ORDER[@]}"; do
+    WT_ARGS+=("$tag" "${APP_LABEL[$tag]}" "${APP_DEFAULT[$tag]}")
+  done
+  RAW=$(whiptail --title "Chọn phần mềm cần cài" \
+    --checklist "Dùng MŨI TÊN di chuyển, SPACE tick chọn, ENTER xác nhận:" \
+    22 80 16 "${WT_ARGS[@]}" \
+    3>&1 1>&2 2>&3) || { echo "Đã huỷ. Không cài gì cả."; exit 0; }
+  SELECTED="$(echo "$RAW" | tr -d '"')"
+fi
+
+if [[ -z "${SELECTED// }" ]]; then
+  MSG="Bạn chưa tick chọn gì cả. Thoát."
+  [[ $GUI == 1 ]] && zenity --info --text "$MSG" || echo "$MSG"
   exit 0
 fi
 
-# Hàm kiểm tra một tag có được tick hay không
+# Kiểm tra một tag có được chọn hay không
 is_selected() {
-  [[ "$CHOICES" == *"\"$1\""* ]]
+  [[ " $SELECTED " == *" $1 "* ]]
 }
 
 # --------------------------------------------------------------------------
@@ -79,6 +132,36 @@ have_cmd()     { command -v "$1" >/dev/null 2>&1; }
 have_deb()     { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"; }
 have_flatpak() { flatpak info --system "$1" >/dev/null 2>&1; }   # trả false nếu chưa có flatpak
 skip_msg()     { echo "=== $1 đã cài rồi, bỏ qua. ==="; }
+
+# ==========================================================================
+# Thiết lập sudo cho chế độ GUI: hỏi mật khẩu 1 lần bằng cửa sổ, cache lại
+# ==========================================================================
+# Nhờ vậy các lệnh sudo bên trong hàm cài KHÔNG cần terminal và không hỏi lại.
+ASKPASS_FILE=""
+KEEPALIVE_PID=""
+cleanup() {
+  [[ -n "$KEEPALIVE_PID" ]] && kill "$KEEPALIVE_PID" 2>/dev/null || true
+  [[ -n "$ASKPASS_FILE" ]] && rm -f "$ASKPASS_FILE" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+if [[ $GUI == 1 ]]; then
+  ASKPASS_FILE="$(mktemp)"
+  cat > "$ASKPASS_FILE" <<'EOF'
+#!/bin/bash
+zenity --password --title="Nhập mật khẩu quản trị (sudo)"
+EOF
+  chmod +x "$ASKPASS_FILE"
+  export SUDO_ASKPASS="$ASKPASS_FILE"
+  # Mồi quyền sudo bằng hộp thoại đồ hoạ
+  if ! sudo -A -v; then
+    zenity --error --text "Sai mật khẩu hoặc đã huỷ. Không cài được."
+    exit 1
+  fi
+  # Giữ quyền sudo còn hiệu lực suốt quá trình cài (cài lâu hơn timeout mặc định)
+  ( while true; do sudo -n -v 2>/dev/null || exit; sleep 50; done ) &
+  KEEPALIVE_PID=$!
+fi
 
 # ==========================================================================
 # Các hàm cài đặt cho từng phần mềm
@@ -378,24 +461,14 @@ install_flameshot() {
     org.freedesktop.impl.portal.PermissionStore.Delete \
     string:'screenshot' string:'screenshot' 2>/dev/null || true
 
-  # Gán phím tắt: GNOME làm tự động; KDE thì hướng dẫn làm tay (KDE dùng cơ
-  # chế phím tắt riêng, không qua gsettings).
+  # Gán phím tắt: GNOME làm tự động; các desktop khác hướng dẫn làm tay.
   if [[ "$DESKTOP_ENV" == "gnome" ]]; then
     flameshot_shortcut_gnome
   else
-    echo "=== ($DESKTOP_ENV) Không tự gán phím được qua script -> gán tay với lệnh 'flameshot gui': ==="
-    case "$DESKTOP_ENV" in
-      kde)      echo "    System Settings > Shortcuts > Add New > Command or Script" ;;
-      cinnamon) echo "    System Settings > Keyboard > Shortcuts > Custom Shortcuts > Add" ;;
-      mate)     echo "    Control Center > Keyboard Shortcuts > Add" ;;
-      xfce)     echo "    Settings > Keyboard > Application Shortcuts > Add" ;;
-      *)        echo "    Mở phần cài đặt phím tắt của desktop, thêm lệnh mới" ;;
-    esac
-    echo "    đặt lệnh 'flameshot gui' cho tổ hợp phím Ctrl+Shift+S."
+    echo "=== ($DESKTOP_ENV) Không tự gán phím được -> gán tay lệnh 'flameshot gui' cho Ctrl+Shift+S. ==="
   fi
 
-  # Cho Flameshot tự chạy nền mỗi khi khởi động máy (chuẩn freedesktop, dùng
-  # được cho cả GNOME lẫn KDE).
+  # Cho Flameshot tự chạy nền mỗi khi khởi động máy (chuẩn freedesktop).
   mkdir -p ~/.config/autostart
   cat > ~/.config/autostart/flameshot.desktop << 'EOF'
 [Desktop Entry]
@@ -409,76 +482,121 @@ EOF
 }
 
 # ==========================================================================
-# Chạy cài đặt theo lựa chọn
+# Xử lý xung đột 2 bộ gõ (fcitx5 + ibus) trước khi cài
 # ==========================================================================
-# Cảnh báo nếu lỡ tick cả 2 bộ gõ cùng lúc (dễ xung đột, chỉ nên dùng 1)
+SKIP_IBUS=0
 if is_selected fcitx5 && is_selected ibus; then
-  echo "⚠️  CẢNH BÁO: Bạn đã chọn CẢ fcitx5 LẪN ibus-bamboo."
-  echo "    Chạy song song 2 bộ gõ dễ gây xung đột, gõ lỗi lung tung."
-  echo "    Khuyên chỉ dùng fcitx5. Bỏ qua ibus? [Enter = bỏ ibus / gõ 'y' = vẫn cài cả 2]"
-  read -r ANSWER
-  if [[ "$ANSWER" != "y" && "$ANSWER" != "Y" ]]; then
-    echo "    → Sẽ chỉ cài fcitx5, bỏ qua ibus-bamboo."
-    SKIP_IBUS=1
+  Q="Bạn đã chọn CẢ fcitx5 LẪN ibus-bamboo. Chạy song song 2 bộ gõ dễ xung đột, nên chỉ dùng 1.
+
+Bấm OK để chỉ cài fcitx5 (bỏ ibus). Bấm Cancel để cài cả hai."
+  if [[ $GUI == 1 ]]; then
+    if zenity --question --title "Trùng bộ gõ" --text "$Q"; then SKIP_IBUS=1; fi
+  else
+    echo "⚠️  $Q"
+    read -r -p "Bỏ ibus? [Enter = bỏ ibus / gõ 'n' rồi Enter = cài cả 2]: " ANSWER
+    [[ "$ANSWER" != "n" && "$ANSWER" != "N" ]] && SKIP_IBUS=1
   fi
 fi
 
-is_selected chrome    && install_chrome
-is_selected telegram  && install_telegram
-is_selected wechat    && install_wechat
-is_selected lark      && install_lark
-is_selected wps       && install_wps
-is_selected edge      && install_edge
-is_selected coccoc    && install_coccoc
-is_selected msfonts   && install_msfonts
-is_selected archive   && install_archive
-is_selected anydesk   && install_anydesk
-is_selected vlc       && install_vlc
-is_selected rclone    && install_rclone
-is_selected fcitx5    && install_fcitx5
-is_selected ibus && [[ "${SKIP_IBUS:-0}" != "1" ]] && install_ibus
-is_selected flameshot && install_flameshot
+# ==========================================================================
+# Dựng danh sách app sẽ cài (theo thứ tự APP_ORDER)
+# ==========================================================================
+RUN_LIST=()
+for tag in "${APP_ORDER[@]}"; do
+  is_selected "$tag" || continue
+  [[ "$tag" == "ibus" && "$SKIP_IBUS" == 1 ]] && continue
+  RUN_LIST+=("$tag")
+done
 
-echo ""
-echo "=== XONG! ==="
-if is_selected telegram; then
-  echo "[Telegram] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
-  echo "[Telegram] Chạy tay bằng lệnh: flatpak run org.telegram.desktop"
+LOG="$HOME/caidat-log.txt"
+FAILLOG="$(mktemp)"
+: > "$LOG"
+
+# Cài 1 app, ghi log; trả 0 nếu OK, 1 nếu lỗi (không để set -e giết vòng lặp)
+install_one() {
+  local tag="$1"
+  { echo "########## ${APP_LABEL[$tag]} ##########"; "install_$tag"; } >>"$LOG" 2>&1
+}
+
+# ==========================================================================
+# Chạy cài đặt
+# ==========================================================================
+if [[ $GUI == 1 ]]; then
+  # Xuất tiến trình cho zenity --progress: dòng '# text' = mô tả, số = phần trăm
+  run_gui() {
+    local total=${#RUN_LIST[@]} i=0 tag
+    for tag in "${RUN_LIST[@]}"; do
+      i=$((i+1))
+      echo "# ($i/$total) Đang cài ${APP_LABEL[$tag]} ..."
+      echo $(( (i-1)*100 / (total>0?total:1) ))
+      install_one "$tag" || echo "$tag" >> "$FAILLOG"
+    done
+    echo "# Hoàn tất"
+    echo 100
+  }
+  run_gui | zenity --progress --title "Đang cài đặt phần mềm" \
+    --text "Chuẩn bị..." --percentage=0 --auto-close --no-cancel --width 520 || true
+else
+  # Terminal: in trực tiếp cho thấy tiến trình; dừng ngay nếu 1 app lỗi (set -e)
+  for tag in "${RUN_LIST[@]}"; do
+    echo "########## ${APP_LABEL[$tag]} ##########"
+    "install_$tag" || echo "$tag" >> "$FAILLOG"
+  done
 fi
-if is_selected wechat; then
-  echo "[WeChat] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
-  echo "[WeChat] Chạy tay bằng lệnh: flatpak run com.tencent.WeChat"
-fi
-if is_selected wps; then
-  echo "[WPS] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
-  echo "[WPS] Chạy tay bằng lệnh: flatpak run com.wps.Office"
-fi
-if is_selected edge; then
-  echo "[Edge] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
-  echo "[Edge] Chạy tay bằng lệnh: flatpak run com.microsoft.Edge"
-fi
-if is_selected rclone; then
-  echo "[Rclone UI] Cài qua Flatpak. Nếu chưa thấy trong menu ứng dụng, đăng xuất/đăng nhập lại một lần."
-  echo "[Rclone UI] Chạy tay: flatpak run com.rcloneui.RcloneUI . Lần đầu vào thêm remote (Google Drive/cloud) rồi kéo-thả file."
-fi
-if is_selected fcitx5; then
-  echo "[fcitx5] Nhớ ĐĂNG XUẤT/KHỞI ĐỘNG LẠI máy để bộ gõ có hiệu lực (biến môi trường + session mới)."
-  echo "[fcitx5] Unikey đã được thêm sẵn vào danh sách bộ gõ. Chuyển English <-> tiếng Việt bằng: Ctrl + Space."
-  echo "[fcitx5] Muốn đổi kiểu gõ (Telex/VNI) hoặc bảng mã: mở 'Fcitx5 Configuration' (lệnh: fcitx5-configtool)."
-fi
-if is_selected ibus && [[ "${SKIP_IBUS:-0}" != "1" ]]; then
-  echo "[ibus] Nhớ đăng xuất/khởi động lại máy để dùng được ibus-bamboo (bộ gõ tiếng Việt)."
-  if [[ "$DESKTOP_ENV" == "kde" ]]; then
-    echo "[ibus] KDE: vào System Settings > Input Devices/Virtual Keyboard để thêm 'Bamboo'. (Trên KDE fcitx5 mượt hơn ibus.)"
-  else
-    echo "[ibus] Sau khi khởi động lại, vào Settings > Keyboard > Input Sources, thêm 'Bamboo' để dùng."
+
+# ==========================================================================
+# Ghi chú sau cài (in ra terminal hoặc gộp vào 1 cửa sổ zenity)
+# ==========================================================================
+build_notes() {
+  if is_selected telegram; then
+    echo "• Telegram/WeChat/WPS/Edge/Rclone UI cài qua Flatpak: nếu chưa thấy trong menu, hãy ĐĂNG XUẤT/ĐĂNG NHẬP lại."
   fi
-fi
-if is_selected flameshot; then
-  if [[ "$DESKTOP_ENV" == "gnome" ]]; then
-    echo "[Flameshot] Đã gán tổ hợp Ctrl+Shift+S, dùng thử ngay được (có thể cần đăng xuất/đăng nhập lại nếu chưa nhận phím)."
-  else
-    echo "[Flameshot] ($DESKTOP_ENV) Chưa gán phím tự động. Xem hướng dẫn gán tay 'flameshot gui' + Ctrl+Shift+S ở phần cài đặt phím tắt của desktop (in ở trên)."
+  if is_selected rclone; then
+    echo "• Rclone UI: mở app rồi thêm remote (Google Drive/cloud), sau đó kéo-thả file để đồng bộ."
   fi
-  echo "[Flameshot] Lần đầu bấm phím chụp, nếu hệ thống hiện hộp thoại xin quyền chụp màn hình, nhớ bấm Allow/Cho phép."
+  if is_selected fcitx5; then
+    echo "• fcitx5: ĐĂNG XUẤT/KHỞI ĐỘNG LẠI để bộ gõ có hiệu lực. Chuyển gõ tiếng Việt: Ctrl+Space. Đổi Telex/VNI: mở fcitx5-configtool."
+  fi
+  if is_selected ibus && [[ "$SKIP_IBUS" != 1 ]]; then
+    echo "• ibus-bamboo: ĐĂNG XUẤT/KHỞI ĐỘNG LẠI, rồi vào Cài đặt bàn phím > Input Sources thêm 'Bamboo'."
+  fi
+  if is_selected flameshot; then
+    if [[ "$DESKTOP_ENV" == "gnome" ]]; then
+      echo "• Flameshot: đã gán phím Ctrl+Shift+S để chụp màn hình."
+    else
+      echo "• Flameshot: hãy vào Cài đặt phím tắt của desktop, gán lệnh 'flameshot gui' cho Ctrl+Shift+S."
+    fi
+  fi
+}
+
+FAILED="$( [[ -s "$FAILLOG" ]] && while read -r t; do echo "${APP_LABEL[$t]}"; done < "$FAILLOG" )"
+rm -f "$FAILLOG"
+
+if [[ $GUI == 1 ]]; then
+  SUMMARY="✅ Đã cài xong (chi tiết log: $LOG)"
+  NOTES="$(build_notes)"
+  [[ -n "$NOTES" ]] && SUMMARY="$SUMMARY
+
+Lưu ý:
+$NOTES"
+  if [[ -n "$FAILED" ]]; then
+    SUMMARY="$SUMMARY
+
+⚠️ Một số mục CHƯA cài được:
+$FAILED
+Xem log: $LOG"
+    zenity --warning --title "Hoàn tất (có lỗi)" --text "$SUMMARY" --width 560
+  else
+    zenity --info --title "Hoàn tất" --text "$SUMMARY" --width 560
+  fi
+else
+  echo ""
+  echo "=== XONG! ==="
+  build_notes
+  if [[ -n "$FAILED" ]]; then
+    echo ""
+    echo "⚠️ Một số mục CHƯA cài được:"
+    echo "$FAILED"
+    echo "Xem log: $LOG"
+  fi
 fi
