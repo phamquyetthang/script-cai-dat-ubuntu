@@ -31,14 +31,23 @@ Script tự nhận biết môi trường:
   cửa sổ, có thanh tiến trình. Không cần dùng terminal.
 - **Chạy trong terminal** (không có đồ hoạ) → hiện checkbox `whiptail`.
 
-### Cho người dùng cuối (không rành máy) — double-click
+### Cho người dùng cuối (không rành máy)
 
-1. Tải toàn bộ thư mục về (bấm **Code ▸ Download ZIP** trên GitHub rồi giải nén).
-2. Mở thư mục, **double-click** file **`cai-dat-phan-mem.desktop`**.
-   - Lần đầu trên GNOME/Ubuntu: chuột phải file → **Allow Launching** (Cho phép
-     chạy), rồi double-click lại.
-3. Cửa sổ hiện lên → tick phần mềm cần cài → **OK** → nhập mật khẩu máy → chờ
-   thanh tiến trình chạy xong.
+> GNOME không cho chạy file `.desktop` nằm trong thư mục thường (double-click chỉ
+> mở text editor). Nên **lần đầu** chạy `caidat.sh` như dưới; sau đó script tự
+> thêm icon **"Cài đặt phần mềm văn phòng"** vào **Menu ứng dụng** — lần sau chỉ
+> cần bấm icon đó.
+
+**Lần đầu chạy:**
+1. Tải thư mục về (**Code ▸ Download ZIP** trên GitHub rồi giải nén).
+2. Chuột phải **`caidat.sh`** → **Properties ▸ Permissions** → tick **"Allow
+   executing file as program"** (Cho phép chạy như chương trình).
+3. Chuột phải **`caidat.sh`** → **Run as a Program** (Chạy như chương trình).
+   - _Mint/Xfce/KDE:_ có thể double-click thẳng `caidat.sh` rồi chọn **Run**.
+4. Cửa sổ tick chọn hiện lên → chọn app → **OK** → nhập mật khẩu → chờ xong.
+
+**Những lần sau:** mở **Menu ứng dụng**, tìm **"Cài đặt phần mềm văn phòng"**,
+bấm vào là chạy.
 
 ### Cho người rành dùng dòng lệnh
 

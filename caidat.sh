@@ -51,6 +51,34 @@ fi
 echo "Desktop: $DESKTOP_ENV | Distro: $DISTRO_ID | Giao diện: $([[ $GUI == 1 ]] && echo GUI || echo Terminal)"
 
 # ==========================================================================
+# Tự cài shortcut vào Menu ứng dụng (để lần sau bấm icon là chạy được)
+# ==========================================================================
+# GNOME không cho chạy .desktop nằm trong thư mục thường; nhưng .desktop đặt
+# trong ~/.local/share/applications thì hiện trong Menu và bấm chạy được.
+install_menu_launcher() {
+  local script_path apps_dir
+  script_path="$(readlink -f "$0" 2>/dev/null)" || return 0
+  [[ -f "$script_path" ]] || return 0
+  apps_dir="$HOME/.local/share/applications"
+  mkdir -p "$apps_dir"
+  cat > "$apps_dir/cai-dat-phan-mem.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Cài đặt phần mềm văn phòng
+Comment=Chọn và cài phần mềm cho máy Ubuntu/Kubuntu/Mint
+Terminal=false
+Icon=system-software-install
+Categories=System;Utility;
+Exec=bash "$script_path"
+EOF
+  chmod +x "$apps_dir/cai-dat-phan-mem.desktop" 2>/dev/null || true
+  command -v update-desktop-database >/dev/null 2>&1 \
+    && update-desktop-database "$apps_dir" 2>/dev/null || true
+  echo "Đã thêm 'Cài đặt phần mềm văn phòng' vào Menu ứng dụng (tìm trong danh sách app)."
+}
+install_menu_launcher || true
+
+# ==========================================================================
 # Danh mục phần mềm (một nguồn duy nhất cho cả GUI lẫn Terminal)
 # ==========================================================================
 # Thứ tự hiển thị = thứ tự cài. Hàm cài của mỗi app là install_<tag>.
